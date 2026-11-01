@@ -31,6 +31,7 @@ import hmac
 import json
 import os
 import re
+import struct
 import sys
 import threading
 import time
@@ -113,6 +114,37 @@ def have(h, start, end, offset, piece):
     """Whether the file's bytes [start, end] are downloaded."""
     states = piece_states(h)
     return all(s == 2 for s in states[(offset + start) // piece:(offset + end) // piece + 1])
+
+
+def share(h, start, end, offset, piece):
+    """The share (0 to 1) of the pieces holding the file's bytes [start, end] that are downloaded."""
+    part = piece_states(h)[(offset + start) // piece:(offset + end) // piece + 1]
+    return sum(1 for s in part if s == 2) / float(max(1, len(part)))
+
+
+def index_after_video(path, done):
+    """Where an MP4's index (its moov box) starts when it comes after the video (mdat), read from the box headers in
+    its first `done` bytes; None when the index comes first, or that far isn't enough to tell. No player starts an MP4
+    without its index: with it at the end, the end has to be downloaded too."""
+    try:
+        with open(path, 'rb') as f:
+            pos = 0
+            while pos + 16 <= done:
+                f.seek(pos)
+                head = f.read(16)
+                size, kind = struct.unpack('>I4s', head[:8])
+                if size == 1:   # a 64-bit size follows
+                    size = struct.unpack('>Q', head[8:16])[0]
+                if kind == b'moov':
+                    return None
+                if kind == b'mdat':
+                    return pos + size if size else None
+                if size < 8:
+                    return None
+                pos += size
+    except (OSError, struct.error):
+        pass
+    return None
 
 
 def ready_from_start(h, size, offset, piece):
@@ -260,11 +292,23 @@ def progress(h):
     index = picked[h]
     path, size, offset, piece = layout(h, index)
     done = ready_from_start(h, size, offset, piece)
-    need = min(READY, size)
-    ready = path is not None and done >= need and have(h, size - 1, size - 1, offset, piece)
+    # What has to be there before the TV starts: the start, and the end: an MP4's index when it comes after the video
+    # (then all of it), else the last piece (an MKV's cues, an MP4's last box). The percent counts both, so it says 100
+    # only when the file can start.
+    want = [(min(done, READY, size), min(READY, size))]   # (downloaded, needed) bytes
+    end = None
+    if path and os.path.splitext(files[index].name)[1].lower() in ('.mp4', '.m4v', '.mov'):
+        end = index_after_video(path, done)
+    if end is not None and end < size:
+        want.append((share(h, end, size - 1, offset, piece) * (size - end), size - end))
+    else:
+        want.append((piece if have(h, size - 1, size - 1, offset, piece) else 0, piece))
+    got, total = sum(w[0] for w in want), sum(w[1] for w in want)
+    ready = path is not None and got >= total
     name = files[index].name
     return {'stage': 'ready' if ready else 'downloading', 'file': index, 'name': os.path.basename(name),
-            'percent': int(min(done, need) * 100 / max(1, need)), 'speed': t.dlspeed, 'seeds': t.num_seeds}
+            'percent': int(got * 100 / max(1, total)), 'indexAtEnd': end is not None and end < size,
+            'speed': t.dlspeed, 'seeds': t.num_seeds}
 
 
 # MARK: - HTTP
@@ -347,24 +391,32 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         if not body:
             return
-        with open(path, 'rb') as f:
-            pos = start
-            while pos <= end:
-                n = min(CHUNK, end + 1 - pos)
-                deadline = time.time() + WAIT
-                while True:
-                    try:
-                        if have(h, pos, pos + n - 1, offset, piece):
+        # Each range's end goes in the log: what the TV took, and why it stopped, which is where a video that doesn't
+        # start shows why (the TV hung up, or a piece never came).
+        pos, why = start, 'all sent'
+        try:
+            with open(path, 'rb') as f:
+                while pos <= end and why == 'all sent':
+                    n = min(CHUNK, end + 1 - pos)
+                    deadline = time.time() + WAIT
+                    while True:
+                        try:
+                            if have(h, pos, pos + n - 1, offset, piece):
+                                break
+                        except Refused:   # the headers went already: only ending the connection says so
+                            deadline = 0
+                        if time.time() > deadline:
+                            why = 'no piece for byte %d in %d s' % (pos, WAIT)
+                            self.close_connection = True
                             break
-                    except Refused:   # the headers went already: only ending the connection says so
-                        deadline = 0
-                    if time.time() > deadline:
-                        self.close_connection = True
-                        return
-                    time.sleep(0.5)
-                f.seek(pos)
-                self.wfile.write(f.read(n))
-                pos += n
+                        time.sleep(0.5)
+                    if why == 'all sent':
+                        f.seek(pos)
+                        self.wfile.write(f.read(n))
+                        pos += n
+        except (BrokenPipeError, ConnectionResetError):
+            why = 'the TV hung up'
+        sys.stderr.write('  %s/%d bytes %d-%d of %d: sent %d, %s\n' % (h[:8], index, start, end, size, pos - start, why))
 
 
 def main():

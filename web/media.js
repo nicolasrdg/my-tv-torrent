@@ -83,6 +83,7 @@ var Media = (function () {
   var focus = 0;     // 0 is the field
   // Only the rows on screen are drawn, under the field, which stays: a country's 400 channels as rows took the TV's
   // older Chromium a moment on every letter typed and every move.
+  // Torrents' rows are taller, for their posters: 6 of them fit where 8 channels do.
   var SHOWN = 8, first = 0;
   var status = '', seq = 0, filterTimer = 0;
   var channels = null;   // iptv-org's list, read once
@@ -95,6 +96,7 @@ var Media = (function () {
     mode = m;
     focus = 0;
     first = 0;
+    SHOWN = m === 'torrents' ? 6 : 8;
     items = [];
     status = '';
     seq++;
@@ -135,7 +137,8 @@ var Media = (function () {
     var holder = sheet().querySelector('.items');
     holder.innerHTML = '';
     for (var i = first; i < items.length && i < first + SHOWN; i++) {
-      var row = el('div', 'row item', holder);
+      var row = el('div', 'row item' + (mode === 'torrents' ? ' poster' : ''), holder);
+      if (mode === 'torrents') art(items[i], row);
       el('span', 'name', row, items[i].label);
       if (items[i].value) el('span', 'value', row, items[i].value);
       row.index = i + 1;
@@ -243,6 +246,44 @@ var Media = (function () {
 
   // MARK: - Torrents: through tools/media_server.py
 
+  // Where a release's name stops being its title: a season or episode, the resolution, the source, the codec...
+  var TAG = /(^|[\s\-\[(])(S\d{1,2}(E\d{1,3})?|season|temporada|complete|completa|\d{3,4}p|4k|uhd|hdr|bluray|blu-ray|brrip|bdrip|web-?dl|webrip|web|hdtv|dvdrip|x26[45]|h\s?26[45]|hevc|10bit|dub|dublado|dual|legendado|nacional|proper|repack|extended|remastered|unrated|imax)(?=$|[\s\-\])])/i;
+
+  /** What a torrent's name says it is: {title, year, kind}, kind 'tv' for a season or an episode, 'movie' for a name
+   *  with a year, else '' (either). "The.Matrix.1999.1080p.BluRay" is The Matrix, a 1999 movie. */
+  function titleOf(name) {
+    var s = name.replace(/\.(mkv|mp4|m4v|avi|webm|mov)$/i, '').replace(/[._]+/g, ' ').replace(/^\s*(\[[^\]]*\]\s*)+/, '');
+    var tv = /(^|\s)(S\d{1,2}(E\d{1,3})?|season|temporada)(?=$|[\s\-])/i.test(s);
+    var cut = s.length, year = '';
+    var y = /[\s(\[\-]((?:19|20)\d{2})(?=$|[\s)\]\-])/.exec(s);   // not at the start: "1917" is a title
+    if (y) { cut = y.index; year = y[1]; }
+    var tag = TAG.exec(s);
+    if (tag && tag.index < cut) cut = tag.index;
+    var title = s.slice(0, cut).replace(/[\[(].*$/, '').replace(/[\s\-:]+$/, '').replace(/^\s+/, '');
+    return {title: title, year: year, kind: tv ? 'tv' : year ? 'movie' : ''};
+  }
+
+  /** A result's poster on its row, asked of TMDB once per title (only for the rows on screen). */
+  function art(item, row) {
+    var box = el('span', 'art', row);
+    if (item.art === undefined) {
+      var t = titleOf(item.label);
+      item.art = null;   // asked
+      if (!t.title) { item.art = ''; return; }
+      Data.poster(t.title, t.year, t.kind, function (path) {
+        item.art = path;
+        var rows = sheet().querySelectorAll('.row.item');
+        for (var i = 0; i < rows.length; i++) if (items[rows[i].index - 1] === item) paint(rows[i].querySelector('.art'), path);
+      });
+    } else if (item.art) {
+      paint(box, item.art);
+    }
+  }
+
+  function paint(box, path) {
+    if (box && path) box.style.backgroundImage = 'url(' + Data.image(path, 'w92') + ')';
+  }
+
   function loadTorrents() {
     setStatus(tr('Connecting…'));
     var mine = seq;
@@ -301,6 +342,7 @@ var Media = (function () {
         return;
       }
       $('player').querySelector('.name').textContent = p.name;
+      say(tr('Connecting…'));   // the player's turn now: not the last download line, which said 100%
       video.src = server('/stream/' + hash + '/' + p.file + '/' + encodeURIComponent(p.name));
       video.play();
     });
@@ -382,7 +424,9 @@ var Media = (function () {
       p.querySelector('.time').textContent = d ? t + ' / ' + d : t;
     });
     video.addEventListener('error', function () {
-      if (playing && video.getAttribute('src')) say(trf("Couldn't open {app}.", {app: p.querySelector('.name').textContent}));
+      // The player's code says why: 2 the network, 3 the picture or sound the TV can't decode, 4 a format it doesn't play.
+      var code = video.error ? '  (' + video.error.code + ')' : '';
+      if (playing && video.getAttribute('src')) say(trf("Couldn't open {app}.", {app: p.querySelector('.name').textContent}) + code);
     });
   }
 

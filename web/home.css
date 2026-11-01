@@ -548,6 +548,19 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 #mediapick .box { left: 310px; top: 70px; width: 1300px; }
 #mediapick .row .name { display: block; margin-right: 330px; overflow: hidden; text-overflow: ellipsis; }
 #mediapick .row .value { max-width: 310px; overflow: hidden; text-overflow: ellipsis; color: rgba(255, 255, 255, 0.55); }
+/* Torrents' results: the title's poster (TMDB) on the left, a 2:3 card; a dim card until it comes, or when none does. */
+#mediapick .row.poster { height: 96px; line-height: 96px; padding-left: 104px; }
+#mediapick .row.poster .art {
+  position: absolute;
+  left: 22px;
+  top: 8px;
+  width: 54px;
+  height: 80px;
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.08);
+  background-position: center;
+  background-size: cover;
+}
 
 /* While it plays, what's under the video isn't drawn: older TVs kept compositing the home screen's layers below it. */
 .playing #sky, .playing #home, .playing #drawer, .playing #mediapick { visibility: hidden; }

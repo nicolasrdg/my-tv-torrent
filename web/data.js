@@ -430,6 +430,9 @@ var Data = (function () {
     return out;
   }
 
+  var posters = {};   // Torrents' title searches: "kind|year|title" -> poster path, or '' for none
+  var asking = {};    // the same, while TMDB answers: who waits for it
+
   /** TMDB's language, as on Android: Latin American Spanish unless the TV is in Spain, and Germany's German. */
   function lang() {
     if (I18N.lang === 'es') return /-ES\b/i.test(navigator.language || '') ? 'es-ES' : 'es-MX';
@@ -672,6 +675,35 @@ var Data = (function () {
     picks: now,
     showcase: all,
     image: function (path, size) { return path ? 'https://image.tmdb.org/t/p/' + (size || 'w1280') + path : ''; },
+    /**
+     * A title's poster (its TMDB path), for Torrents' results (media.js): done(path or ''). kind 'tv' or 'movie' when
+     * the name says, else either; a year picks among titles of the same name. Each search asked once.
+     */
+    poster: function (title, year, kind, done) {
+      var ask = kind + '|' + year + '|' + title.toLowerCase();
+      if (posters[ask] !== undefined) { done(posters[ask]); return; }
+      if (!KEY) { done(''); return; }
+      if (asking[ask]) { asking[ask].push(done); return; }   // the same title on several rows: one search for all
+      asking[ask] = [done];
+      done = function (path) {
+        var waiting = asking[ask];
+        delete asking[ask];
+        for (var w = 0; w < waiting.length; w++) waiting[w](path);
+      };
+      tmdb('/search/' + (kind || 'multi') + '?include_adult=false&language=' + lang() + '&query=' + encodeURIComponent(title)
+          + (year && kind === 'movie' ? '&year=' + year : year && kind === 'tv' ? '&first_air_date_year=' + year : ''), function (err, res) {
+        // The first with a poster, unless a later one is from the year the name says.
+        var best = '', list = !err && res && res.results || [];
+        for (var i = 0; i < list.length; i++) {
+          var o = list[i], when = (o.release_date || o.first_air_date || '').slice(0, 4);
+          if (!o.poster_path || (!kind && o.media_type !== 'movie' && o.media_type !== 'tv')) continue;
+          if (!best) best = o.poster_path;
+          if (year && when === String(year)) { best = o.poster_path; break; }
+        }
+        if (!err) posters[ask] = best;   // a failure is asked again next time
+        done(best);
+      });
+    },
 
     /** Night at the location: from sunset to sunrise (the last forecast; without one, 6:00 and 18:00). */
     isNight: function (at) {
