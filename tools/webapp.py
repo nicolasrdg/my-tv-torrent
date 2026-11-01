@@ -15,7 +15,7 @@ import translate  # noqa: E402  (the catalogues and the keys the web app uses)
 
 GENERIC = {'tmdbKey': '', 'tmdbRegion': '', 'latitude': '', 'longitude': '', 'city': '', 'language': 'auto',
            'currency': '', 'temperature': 'auto', 'theme': 'auto', 'showCrypto': True, 'hideAnimation': False, 'hideApps': [],
-           'shelfApps': [], 'drawerFirst': False, 'openPicksIn': 'apps'}
+           'shelfApps': [], 'drawerFirst': False, 'openPicksIn': 'apps', 'mediaServer': '', 'mediaToken': '', 'iptvCountry': '', 'lite': 'auto'}
 
 
 def config_from_args(args):
@@ -67,6 +67,10 @@ def read_config(path):
         'shelfApps': [s.strip() for s in values.get('shelf_apps', '').split(',') if s.strip()],
         'drawerFirst': values.get('drawer_first', 'false').lower() == 'true',
         'openPicksIn': 'nuvio' if values.get('open_picks_in', '').strip().lower() == 'nuvio' else 'apps',
+        'mediaServer': values.get('media_server', ''),
+        'mediaToken': values.get('media_token', ''),
+        'iptvCountry': values.get('iptv_country', ''),
+        'lite': {'true': 'on', 'false': 'off'}.get(values.get('lite', '').strip().lower(), 'auto'),
     }
 
 

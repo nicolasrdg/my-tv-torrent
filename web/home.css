@@ -383,6 +383,9 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   -webkit-transition: opacity 0.17s;
   transition: opacity 0.17s;
 }
+/* Channels and Torrents (media.js): a symbol over the name, where an app has its logo. */
+.tile .glyph { position: absolute; left: 50%; top: 16%; width: 46px; height: 46px; margin-left: -23px; }
+.tile .word.under { top: auto; bottom: 12%; margin-top: 0; height: 30px; line-height: 30px; font-size: 22px !important; font-weight: 600; }
 .tile.focus { -webkit-transform: scale(1.2); transform: scale(1.2); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.34); z-index: 2; }
 .tile.focus::after { opacity: 1; }
 .night .tile { box-shadow: 0 4px 22px rgba(0, 0, 0, 0.3); }
@@ -498,7 +501,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .cell.focus .face { -webkit-transform: scale(1.08); transform: scale(1.08); box-shadow: 0 16px 34px rgba(0, 0, 0, 0.55), inset 0 0 0 2px rgba(255, 255, 255, 0.4); }
 .cell.focus .label { color: #FFF; }
 
-#settings .box, #shelfedit .box, #langpick .box, #citypick .box, #keypick .box, #about .box {
+#settings .box, #shelfedit .box, #langpick .box, #citypick .box, #keypick .box, #about .box, #mediapick .box {
   position: absolute;
   left: 560px;
   top: 150px;
@@ -521,7 +524,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .box .row .value .sym { width: 26px; height: 26px; vertical-align: -3px; }
 .box .row.dim { color: rgba(255, 255, 255, 0.4); }
 #about .row .value { font-feature-settings: 'tnum'; }
-#citypick .row.field input, #keypick .row.field input {
+#citypick .row.field input, #keypick .row.field input, #mediapick .row.field input {
   width: 100%;
   height: 70px;
   margin: 0;
@@ -533,14 +536,44 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   font: inherit;
   line-height: 70px;
 }
-#citypick .row.field, #keypick .row.field { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.18); }
-#citypick .row.field input::-webkit-input-placeholder, #keypick .row.field input::-webkit-input-placeholder { color: rgba(255, 255, 255, 0.4); }
-#citypick .row.field input::placeholder, #keypick .row.field input::placeholder { color: rgba(255, 255, 255, 0.4); }
+#citypick .row.field, #keypick .row.field, #mediapick .row.field { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.18); }
+#citypick .row.field input::-webkit-input-placeholder, #keypick .row.field input::-webkit-input-placeholder, #mediapick .row.field input::-webkit-input-placeholder { color: rgba(255, 255, 255, 0.4); }
+#citypick .row.field input::placeholder, #keypick .row.field input::placeholder, #mediapick .row.field input::placeholder { color: rgba(255, 255, 255, 0.4); }
 #citypick .row { overflow: hidden; text-overflow: ellipsis; }
 #about .row .value.cut { overflow: hidden; text-overflow: ellipsis; }
 .box .hint { padding: 14px 18px 0; font-size: 22px; font-weight: 500; color: rgba(255, 255, 255, 0.5); }
 .box .hint.warn { color: #FFC266; }
 .box .hint.steps { white-space: pre-line; line-height: 1.4; }
+/* Channels and Torrents (media.js): wider, for long names, with what each is (a group, seeds and size) on the right. */
+#mediapick .box { left: 310px; top: 70px; width: 1300px; }
+#mediapick .row .name { display: block; margin-right: 330px; overflow: hidden; text-overflow: ellipsis; }
+#mediapick .row .value { max-width: 310px; overflow: hidden; text-overflow: ellipsis; color: rgba(255, 255, 255, 0.55); }
+
+/* While it plays, what's under the video isn't drawn: older TVs kept compositing the home screen's layers below it. */
+.playing #sky, .playing #home, .playing #drawer, .playing #mediapick { visibility: hidden; }
+
+/* Their video: over everything but the dimming and the toast. The bar shows while there's something to say. */
+#player { z-index: 5; background: #000; visibility: hidden; }
+#player.open { visibility: visible; }
+#player video { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: #000; }
+#player .bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 280px;
+  color: #FFF;
+  background: -webkit-linear-gradient(top, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.85));
+  background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.85));
+  opacity: 0;
+  -webkit-transition: opacity 0.3s;
+  transition: opacity 0.3s;
+}
+#player .bar.on { opacity: 1; }
+#player .name { position: absolute; left: 96px; right: 420px; bottom: 124px; font-size: 40px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#player .status { position: absolute; left: 96px; right: 420px; bottom: 74px; font-size: 26px; font-weight: 500; color: rgba(255, 255, 255, 0.75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#player .time { position: absolute; right: 96px; bottom: 76px; font-size: 30px; font-weight: 600; font-feature-settings: 'tnum'; }
+
 .toggle { position: absolute; right: 24px; top: 13px; width: 78px; height: 44px; border-radius: 22px; background: #3A3D45; -webkit-transition: background-color 0.14s; transition: background-color 0.14s; }
 .toggle::after { content: ''; position: absolute; left: 4px; top: 4px; width: 36px; height: 36px; border-radius: 18px; background: #FFF; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); -webkit-transition: -webkit-transform 0.14s; transition: transform 0.14s; }
 .toggle.on { background: #3FD69B; }

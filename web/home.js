@@ -267,6 +267,11 @@
     paint(box, top, bottom);
     var word = el('div', 'word', box, app.title);
     if (wordSize) word.style.fontSize = wordSize + 'px';
+    if (app.symbol) {   // Channels and Torrents (media.js): their symbol over their name
+      sym(app.symbol, box).className += ' glyph';
+      word.className += ' under';
+      return;
+    }
     if (app.icon) {
       var img = el('img', '', box), url = app.icon;
       word.style.visibility = 'hidden';
@@ -314,8 +319,8 @@
       }
       if (!out.length) out = apps.slice(0, FEW_APPS);
     }
-    shelf = out;
-    others = apps.filter(function (x) { return shelf.indexOf(x) < 0; });
+    others = apps.filter(function (x) { return out.indexOf(x) < 0; });
+    shelf = Media.apps().concat(out);   // Channels and Torrents first, whatever the shelf's apps are
   }
 
   // MARK: - Focus
@@ -1187,7 +1192,8 @@
   // MARK: - Shelf editor: which apps, in what order
 
   function editList() {
-    var ids = shelf.map(function (a) { return a.id; });
+    // Channels and Torrents (media.js) are always first: the editor orders the TV's apps after them.
+    var ids = shelf.filter(function (a) { return !a.run; }).map(function (a) { return a.id; });
     return {ids: ids, rows: apps.slice().sort(function (a, b) {
       var ia = ids.indexOf(a.id), ib = ids.indexOf(b.id);
       if (ia >= 0 || ib >= 0) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
@@ -1294,7 +1300,8 @@
         if (target) launcher(target.app.id, target.app.title, target.params)();
         return;
       case Z.SHELF:
-        if (shelf[st.shelf]) launcher(shelf[st.shelf].id, shelf[st.shelf].title)();
+        var app = shelf[st.shelf];
+        if (app) (app.run || launcher(app.id, app.title))();
         return;
       case Z.DRAWER:
         if (drawerItems[st.drawer]) drawerItems[st.drawer].run();
@@ -1595,6 +1602,7 @@
   document.addEventListener('keydown', function (e) {
     var k = e.keyCode;
     if (poke(k === TV.keys.ok)) { e.preventDefault(); return; }   // the first press only wakes the screen (or OK watches)
+    if (Media.key(e)) return;   // Channels or Torrents is up: its list or its video
     if (typing(k)) return;
     if (k === TV.keys.left) move(-1, 0);
     else if (k === TV.keys.right) move(1, 0);
@@ -1659,6 +1667,7 @@
   function reset() {
     hideSaver();
     hideAmbient();
+    Media.close();
     closeSheets();
     st.zone = Z.SHELF;
     st.shelf = 0;
@@ -1694,7 +1703,7 @@
   document.addEventListener('webOSRelaunch', reopened);   // LG: opened again while running
   window.addEventListener('appcontrol', reopened);        // Samsung: the same
   document.addEventListener('visibilitychange', function () {
-    if (document.hidden) { hideSaver(); hideAmbient(); return; }
+    if (document.hidden) { hideSaver(); hideAmbient(); Media.close(); return; }   // a video lets go of the TV's decoder
     idleAt = Date.now();
     loadApps(function () { renderShelf(); renderDrawer(); updateFocus(); Data.refresh(); });
   });
@@ -1702,7 +1711,10 @@
   I18N.set(Prefs.language());
   checkNight();   // now, from the last forecast: not after the TV lists its apps, with the day look until then
   // LG's screensaver waits only when ours will show: not under a sheet (ours waits there), and not without photos.
-  TV.holdScreenSaver(function () { return !sheetOpen() && (saverMode() === 'clock' || saverPhotos().length > 0); });
+  // It waits too while a video plays (Channels, Torrents).
+  TV.holdScreenSaver(function () {
+    return Media.playing() || (!sheetOpen() && !Media.active() && (saverMode() === 'clock' || saverPhotos().length > 0));
+  });
   fit();
   renderTop();
   applyDim();
@@ -1716,7 +1728,7 @@
     checkNight();
     Data.refresh();
     applyDim();   // automatic: medium from 22:00, off again at 07:00
-    if (!saverOn && !ambientOn && !sheetOpen() && Date.now() - idleAt > SAVER_AFTER) {
+    if (!saverOn && !ambientOn && !sheetOpen() && !Media.active() && Date.now() - idleAt > SAVER_AFTER) {
       if (saverMode() === 'clock') showAmbient(); else showSaver();
     }
     if (saverOn) tickSaverClock($('saver').querySelector('.clock'));

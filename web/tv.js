@@ -21,7 +21,9 @@ var TV = (function () {
   // size: none at a ratio of 1 has been measured. deviceMemory (webOS 5+, Tizen 5+) is the nearest power of two, so it
   // reads 1 up to about 1.5 GB.
   var lowMemory = navigator.deviceMemory && navigator.deviceMemory <= 1;
-  if (tizen2 || (webos && lowMemory) || (samsung && lowMemory && (window.devicePixelRatio || 1) > 1)) {
+  // lite in config.properties: on or off whatever the TV, for a TV the guess below gets wrong; auto leaves it to the guess.
+  var lite = (window.CONFIG && window.CONFIG.lite) || 'auto';
+  if (lite === 'on' || (lite === 'auto' && (tizen2 || (webos && lowMemory) || (samsung && lowMemory && (window.devicePixelRatio || 1) > 1)))) {
     document.documentElement.className += ' lite';
   } else if (samsung && navigator.deviceMemory && navigator.deviceMemory <= 2) {
     // Samsungs up to 2 GB keep the animations but not the soft shadows of the parts that move (home.css): a 2021 Frame

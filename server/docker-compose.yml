@@ -1,0 +1,35 @@
+# Free My TV's media server (server/README.md), on this computer or a VPS: qBittorrent, whose Web UI stays on that
+# machine, and tools/media_server.py, which the TVs reach on port 8090 with the token. server/deploy.sh copies this
+# folder and media_server.py there; setup.sh writes .env and qBittorrent's settings, then starts both.
+services:
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:5.3.0_v2.1.2-ls484
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-America/Sao_Paulo}
+      - WEBUI_PORT=${QB_WEBUI_PORT:-8081}   # the same port inside: the Web UI refuses a Host with another (401)
+      - TORRENTING_PORT=6881
+    volumes:
+      - ./qbittorrent:/config
+      - ./downloads:/downloads
+    ports:
+      - "6881:6881"
+      - "6881:6881/udp"
+      - "127.0.0.1:${QB_WEBUI_PORT:-8081}:${QB_WEBUI_PORT:-8081}"   # the Web UI only from that machine (setup.sh picks the port)
+
+  media:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - qbittorrent
+    environment:
+      - QBITTORRENTAPI_HOST=http://qbittorrent:${QB_WEBUI_PORT:-8081}
+      - QBITTORRENTAPI_USERNAME=admin
+      - QBITTORRENTAPI_PASSWORD=${QB_PASSWORD}
+      - MEDIA_TOKEN=${MEDIA_TOKEN}
+    volumes:
+      - ./downloads:/downloads:ro   # the same path qBittorrent reports, read only
+    ports:
+      - "8090:8090"
